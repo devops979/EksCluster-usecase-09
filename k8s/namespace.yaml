@@ -1,0 +1,9 @@
+# Namespace for microservices
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: microservices
+  labels:
+    name: microservices
+    environment: dev
+    project: devops-challenge

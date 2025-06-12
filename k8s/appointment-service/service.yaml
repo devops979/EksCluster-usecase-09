@@ -1,0 +1,20 @@
+# Appointment Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: appointment-service
+  namespace: microservices
+  labels:
+    app: appointment-service
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 5000
+    protocol: TCP
+    name: http
+  selector:
+    app: appointment-service

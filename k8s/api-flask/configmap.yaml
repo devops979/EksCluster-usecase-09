@@ -1,0 +1,27 @@
+# ConfigMap for Flask API
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-flask-config
+  namespace: microservices
+  labels:
+    app: api-flask
+data:
+  # Flask configuration
+  FLASK_ENV: "production"
+  FLASK_DEBUG: "False"
+  
+  # Application configuration
+  API_TITLE: "Flask API"
+  API_VERSION: "v1"
+  
+  # Logging configuration
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+  
+  # CORS configuration
+  CORS_ORIGINS: "*"
+  
+  # Rate limiting (if implemented)
+  RATE_LIMIT_ENABLED: "true"
+  RATE_LIMIT_DEFAULT: "100 per hour"
