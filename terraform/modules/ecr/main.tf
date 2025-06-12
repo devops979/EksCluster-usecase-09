@@ -1,8 +1,18 @@
+# Data source for current AWS caller identity
+data "aws_caller_identity" "current" {}
+
+# Default allowed principals (current account)
+locals {
+  default_principals = [
+    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+  ]
+}
+
 # ECR Repositories
 resource "aws_ecr_repository" "repositories" {
   for_each = toset(var.repositories)
 
-  name                 = "${var.project_name}-${each.value}"
+  name                  = "${var.project_name}-${each.value}"
   image_tag_mutability = var.image_tag_mutability
 
   image_scanning_configuration {
@@ -61,12 +71,8 @@ resource "aws_ecr_repository_policy" "repositories" {
 }
 
 # ECR Lifecycle Policies
-resource "aws_ecr_lifecycle_policy" "repositories" {
-  for_each = var.lifecycle_policy_enabled ? toset(var.repositories) : []
-
-  repository = aws_ecr_repository.repositories[each.value].name
-
-  policy = jsonencode({
+locals {
+  lifecycle_policy = {
     rules = [
       {
         rulePriority = 1
@@ -95,15 +101,12 @@ resource "aws_ecr_lifecycle_policy" "repositories" {
         }
       }
     ]
-  })
+  }
 }
 
-# Data source for current AWS caller identity
-data "aws_caller_identity" "current" {}
+resource "aws_ecr_lifecycle_policy" "repositories" {
+  for_each = var.lifecycle_policy_enabled ? toset(var.repositories) : []
 
-# Default allowed principals (current account)
-locals {
-  default_principals = [
-    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
-  ]
+  repository = aws_ecr_repository.repositories[each.value].name
+  policy     = jsonencode(local.lifecycle_policy)
 }
