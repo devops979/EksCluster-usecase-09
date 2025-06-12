@@ -75,15 +75,6 @@ resource "aws_security_group_rule" "node_ingress_cluster_https" {
   security_group_id        = aws_security_group.node_group.id
 }
 
-resource "aws_security_group_rule" "node_ingress_cluster_primary" {
-  description              = "Allow pods running extension API servers on port 443 to receive communication from cluster control plane"
-  type                     = "ingress"
-  from_port                = 443
-  to_port                  = 443
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.cluster.id
-  security_group_id        = aws_security_group.node_group.id
-}
 
 resource "aws_security_group_rule" "cluster_ingress_node_https" {
   description              = "Allow pods to communicate with the cluster API Server"
