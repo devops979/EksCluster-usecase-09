@@ -1,14 +1,3 @@
-# ECR Module - Main Configuration
-
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-}
-
 # ECR Repositories
 resource "aws_ecr_repository" "repositories" {
   for_each = toset(var.repositories)
