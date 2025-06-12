@@ -3,10 +3,11 @@ data "aws_caller_identity" "current" {}
 
 # Default principal fallback logic
 locals {
-  default_principal          = "arn:aws:iam::" + data.aws_caller_identity.current.account_id + ":root"
+  default_principal          = format("arn:aws:iam::%s:root", data.aws_caller_identity.current.account_id)
   effective_read_principals  = length(var.allowed_read_principals) > 0 ? var.allowed_read_principals : [local.default_principal]
   effective_write_principals = length(var.allowed_write_principals) > 0 ? var.allowed_write_principals : [local.default_principal]
 }
+
 
 
 # ECR Repositories
