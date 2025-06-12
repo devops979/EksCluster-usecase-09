@@ -1,11 +1,12 @@
-# Data source for current AWS caller identity
+# Get current AWS account ID
 data "aws_caller_identity" "current" {}
 
-# Default allowed principals (current account)
+# Default principal fallback logic
 locals {
-  default_principals = [
-    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
-  ]
+  default_principal = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+
+  effective_read_principals  = length(var.allowed_read_principals) > 0 ? var.allowed_read_principals : [local.default_principal]
+  effective_write_principals = length(var.allowed_write_principals) > 0 ? var.allowed_write_principals : [local.default_principal]
 }
 
 # ECR Repositories
@@ -42,7 +43,7 @@ resource "aws_ecr_repository_policy" "repositories" {
         Sid    = "AllowPull"
         Effect = "Allow"
         Principal = {
-          AWS = var.allowed_read_principals
+          AWS = local.effective_read_principals
         }
         Action = [
           "ecr:GetDownloadUrlForLayer",
@@ -54,7 +55,7 @@ resource "aws_ecr_repository_policy" "repositories" {
         Sid    = "AllowPush"
         Effect = "Allow"
         Principal = {
-          AWS = var.allowed_write_principals
+          AWS = local.effective_write_principals
         }
         Action = [
           "ecr:GetDownloadUrlForLayer",
