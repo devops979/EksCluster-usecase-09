@@ -119,7 +119,7 @@ module "eks" {
   public_subnet_ids   = module.vpc.public_subnet_ids
   
   cluster_version     = var.cluster_version
-  
+  create_log_group  = false
   # IAM roles
   cluster_service_role_arn = module.iam.eks_cluster_role_arn
   node_group_role_arn     = module.iam.eks_node_group_role_arn
