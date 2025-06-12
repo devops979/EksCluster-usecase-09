@@ -67,10 +67,6 @@ jobs:
             -var="environment=$env" \
             -out=tfplan
 
-      - name: Force Unlock Terraform State
-        run: |
-          terraform force-unlock -force 9b3779ae-1f22-d8bb-6cf6-fd5ef0f30027
-
 
       - name: Terraform Apply
         if: github.event_name != 'pull_request'
