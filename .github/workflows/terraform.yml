@@ -19,8 +19,8 @@ defaults:
     working-directory: ./terraform/environments/${{ github.event.inputs.environment || 'dev' }}  
 
 env:
-  AWS_REGION: {{ vars.AWS_REGION }}
-
+  AWS_REGION: ${{ vars.AWS_REGION }}
+jobs:
   deploy_infrastructure:
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment || 'dev' }}
