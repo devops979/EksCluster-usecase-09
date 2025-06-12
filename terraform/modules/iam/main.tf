@@ -73,6 +73,30 @@ resource "aws_iam_role_policy_attachment" "eks_container_registry_readonly" {
   role       = aws_iam_role.eks_node_group.name
 }
 
+
+resource "aws_iam_role_policy_attachment" "eks_load_balancing_policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSLoadBalancingPolicy"
+  role       = aws_iam_role.eks_node_group.name
+}
+
+
+resource "aws_iam_role_policy_attachment" "eks_networking_policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSNetworkingPolicy"
+  role       = aws_iam_role.eks_node_group.name
+}
+
+
+resource "aws_iam_role_policy_attachment" "eks_compute_policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSComputePolicy"
+  role       = aws_iam_role.eks_node_group.name
+}
+
+
+resource "aws_iam_role_policy_attachment" "eks_blob_storage" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSBlockStoragePolicy"
+  role       = aws_iam_role.eks_node_group.name
+}
+
 resource "aws_iam_role_policy_attachment" "eks_ebs_csi_driver_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/Amazon_EBS_CSI_DriverPolicy"
   role       = aws_iam_role.eks_node_group.name
