@@ -119,11 +119,11 @@ resource "aws_eks_cluster" "main" {
 
 # CloudWatch Log Group for EKS cluster logs
 resource "aws_cloudwatch_log_group" "cluster" {
-  count             = var.create_log_group ? 1 : 0
-  name              = "/aws/eks/${var.cluster_name}/cluster"
-  retention_in_days = 7
+  count             = var.create_log_group ? 1 : 0
+  name              = "/aws/eks/${var.cluster_name}/cluster"
+  retention_in_days = 7
 
-  tags = var.tags
+  tags = var.tags
 }
 
 
