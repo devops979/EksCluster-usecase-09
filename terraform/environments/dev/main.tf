@@ -19,7 +19,7 @@ terraform {
 
   backend "s3" {
     bucket       = "demo-usecases-bucket-new"
-    key          = "usecase-08/workspace/terraform.tfstate"
+    key          = "usecase-09/workspace/terraform.tfstate"
     region       = "us-east-1"
     encrypt      = true
     use_lockfile = true # New approach for state locking
