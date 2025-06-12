@@ -91,9 +91,9 @@ variable "coredns_version" {
 
 
 variable "create_log_group" {
-  description = "Whether to create the CloudWatch log group for EKS"
-  type        = bool
-  default     = false
+description = "Whether to create the CloudWatch log group for EKS"
+type        = bool
+default     = false
 }
 
 
