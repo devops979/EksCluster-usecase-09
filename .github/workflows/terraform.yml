@@ -1,11 +1,6 @@
 name: Build and Deploy App
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'terraform/**'
-      - '.github/workflows/terraform.yml'
 
   workflow_dispatch:
     inputs:
