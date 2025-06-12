@@ -98,9 +98,10 @@ resource "aws_iam_role_policy_attachment" "eks_blob_storage" {
 }
 
 resource "aws_iam_role_policy_attachment" "eks_ebs_csi_driver_policy" {
-  policy_arn = "arn:aws:iam::aws:policy/service-role/Amazon_EBS_CSI_DriverPolicy"
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
   role       = aws_iam_role.eks_node_group.name
 }
+
 
 # Additional policy for EBS CSI driver
 resource "aws_iam_role_policy" "eks_ebs_csi_driver" {
