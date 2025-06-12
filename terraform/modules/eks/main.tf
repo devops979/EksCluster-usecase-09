@@ -122,6 +122,10 @@ resource "aws_cloudwatch_log_group" "cluster" {
   name              = "/aws/eks/${var.cluster_name}/cluster"
   retention_in_days = 7
 
+  lifecycle {
+    prevent_destroy = true
+  }
+
   tags = var.tags
 }
 
