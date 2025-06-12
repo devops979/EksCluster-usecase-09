@@ -155,14 +155,14 @@ resource "aws_iam_role_policy" "eks_node_group_cloudwatch" {
         Resource = "arn:aws:logs:*:*:*"
       },
       {
-        "Effect": "Allow",
-        "Action": [
+        "Effect" : "Allow",
+        "Action" : [
           "xray:PutTraceSegments",
           "xray:PutTelemetryRecords",
           "xray:GetSamplingRules",
           "xray:GetSamplingTargets"
         ],
-        "Resource": "*"
+        "Resource" : "*"
       }
 
     ]

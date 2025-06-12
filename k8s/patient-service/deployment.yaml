@@ -21,7 +21,7 @@ spec:
       serviceAccountName: patient-service
       containers:
       - name: patient-service
-        image: ECR_REGISTRY/PROJECT_NAME-patient-service:IMAGE_TAG
+        image: 211125325699.dkr.ecr.us-east-1.amazonaws.com/devops-challenge-patient-service:latest
         ports:
         - containerPort: 5000
           name: http

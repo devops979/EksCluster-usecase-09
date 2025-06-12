@@ -1,5 +1,9 @@
 # EKS Module Outputs
 
+output "eks_cluster_name" {
+  value = aws_eks_cluster.main.name
+}
+
 output "cluster_id" {
   description = "EKS cluster ID"
   value       = aws_eks_cluster.main.id

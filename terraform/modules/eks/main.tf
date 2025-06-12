@@ -119,13 +119,13 @@ resource "aws_eks_cluster" "main" {
 
 # CloudWatch Log Group for EKS cluster logs
 resource "aws_cloudwatch_log_group" "cluster" {
-  count             =  var.create_log_group ? 1 : 0
-  name              =  "/aws/eks/${var.cluster_name}/cluster"
+  count             = var.create_log_group ? 1 : 0
+  name              = "/aws/eks/${var.cluster_name}/cluster"
   retention_in_days = 7
-    lifecycle {
+  lifecycle {
     ignore_changes = [name]
   }
-  tags              = var.tags
+  tags = var.tags
 }
 
 
@@ -176,9 +176,9 @@ resource "aws_eks_node_group" "main" {
 
 # EKS Add-ons
 resource "aws_eks_addon" "coredns" {
-  cluster_name      = aws_eks_cluster.main.name
-  addon_name        = "coredns"
-  addon_version     = var.coredns_version
+  cluster_name                = aws_eks_cluster.main.name
+  addon_name                  = "coredns"
+  addon_version               = var.coredns_version
   resolve_conflicts_on_create = "OVERWRITE"
 
   depends_on = [
@@ -189,9 +189,9 @@ resource "aws_eks_addon" "coredns" {
 }
 
 resource "aws_eks_addon" "kube_proxy" {
-  cluster_name      = aws_eks_cluster.main.name
-  addon_name        = "kube-proxy"
-  addon_version     = var.kube_proxy_version
+  cluster_name                = aws_eks_cluster.main.name
+  addon_name                  = "kube-proxy"
+  addon_version               = var.kube_proxy_version
   resolve_conflicts_on_create = "OVERWRITE"
 
   depends_on = [
@@ -202,9 +202,9 @@ resource "aws_eks_addon" "kube_proxy" {
 }
 
 resource "aws_eks_addon" "vpc_cni" {
-  cluster_name      = aws_eks_cluster.main.name
-  addon_name        = "vpc-cni"
-  addon_version     = var.vpc_cni_version
+  cluster_name                = aws_eks_cluster.main.name
+  addon_name                  = "vpc-cni"
+  addon_version               = var.vpc_cni_version
   resolve_conflicts_on_create = "OVERWRITE"
 
   depends_on = [
@@ -215,9 +215,9 @@ resource "aws_eks_addon" "vpc_cni" {
 }
 
 resource "aws_eks_addon" "ebs_csi_driver" {
-  cluster_name      = aws_eks_cluster.main.name
-  addon_name        = "aws-ebs-csi-driver"
-  addon_version     = var.ebs_csi_version
+  cluster_name                = aws_eks_cluster.main.name
+  addon_name                  = "aws-ebs-csi-driver"
+  addon_version               = var.ebs_csi_version
   resolve_conflicts_on_create = "OVERWRITE"
 
   depends_on = [
