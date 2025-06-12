@@ -8,6 +8,14 @@ on:
       - '.github/workflows/terraform.yml'
 
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, staging, prod]
+
 
 permissions:
   id-token: write
@@ -16,7 +24,7 @@ permissions:
 
 defaults:
   run: 
-    working-directory: ./terraform/environments/${{ github.event.inputs.environment || 'dev' }}  
+    working-directory: ./terraform/environments/dev
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
