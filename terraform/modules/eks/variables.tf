@@ -89,6 +89,15 @@ variable "coredns_version" {
   default     = null
 }
 
+
+variable "create_log_group" {
+  description = "Whether to create the CloudWatch log group for EKS"
+  type        = bool
+  default     = true
+}
+
+
+
 variable "kube_proxy_version" {
   description = "Version of kube-proxy add-on"
   type        = string
