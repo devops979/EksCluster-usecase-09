@@ -115,10 +115,10 @@ jobs:
     name: Deploy to EKS
     needs: [detect-changes, build-appointment-service, build-patient-service]
     if: github.ref == 'refs/heads/main' && (
-      needs.build-appointment-service.result == 'success' ||
-      needs.build-patient-service.result == 'success' ||
       needs.detect-changes.outputs.appointment-service == 'true' ||
-      needs.detect-changes.outputs.patient-service == 'true')
+      needs.detect-changes.outputs.patient-service == 'true' ||
+      needs.build-appointment-service.result == 'success' ||
+      needs.build-patient-service.result == 'success' )
     runs-on: ubuntu-latest
 
     steps:
@@ -140,14 +140,14 @@ jobs:
 
       - name: Deploy to EKS
         run: |
-          if [[ "${{ needs.build-appointment-service.result }}" == "success" || "${{ needs.detect-changes.outputs.appointment-service }}" == "true" ]]; then
+          if [[ "${{ needs.detect-changes.outputs.appointment-service }}" == "true" ]]; then
             sed -i "s|IMAGE_TAG|${{ github.sha }}|g" k8s/appointment-service/*.yaml || true
             sed -i "s|ECR_REGISTRY|${{ env.ECR_REGISTRY }}|g" k8s/appointment-service/*.yaml || true
             sed -i "s|PROJECT_NAME|${{ env.PROJECT_NAME }}|g" k8s/appointment-service/*.yaml || true
             kubectl apply -f k8s/appointment-service/
           fi
 
-          if [[ "${{ needs.build-patient-service.result }}" == "success" || "${{ needs.detect-changes.outputs.patient-service }}" == "true" ]]; then
+          if [[ "${{ needs.detect-changes.outputs.patient-service }}" == "true" ]]; then
             sed -i "s|IMAGE_TAG|${{ github.sha }}|g" k8s/patient-service/*.yaml || true
             sed -i "s|ECR_REGISTRY|${{ env.ECR_REGISTRY }}|g" k8s/patient-service/*.yaml || true
             sed -i "s|PROJECT_NAME|${{ env.PROJECT_NAME }}|g" k8s/patient-service/*.yaml || true
