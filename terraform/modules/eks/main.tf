@@ -124,6 +124,8 @@ resource "aws_cloudwatch_log_group" "cluster" {
   retention_in_days = 7
   lifecycle {
     ignore_changes = [name]
+    prevent_destroy        = true
+    create_before_destroy = true
   }
   tags = var.tags
 }
