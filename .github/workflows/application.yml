@@ -26,7 +26,7 @@ env:
 jobs:
   detect-changes:
     name: Detect Changes
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       patient-service: ${{ steps.changes.outputs.patient-service }}
       appointment-service: ${{ steps.changes.outputs.appointment-service }}
@@ -49,7 +49,7 @@ jobs:
 
   build-patient-service:
     name: Build Patient Service
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.patient-service == 'true'
 
@@ -81,7 +81,7 @@ jobs:
 
   build-appointment-service:
     name: Build Appointment Service
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.appointment-service == 'true'
 
