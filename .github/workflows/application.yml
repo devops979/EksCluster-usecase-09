@@ -22,6 +22,49 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION }}
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
   PROJECT_NAME: devops-challenge
+jobs:
+  detect-changes:
+    name: Detect Changes
+    runs-on: self-hosted
+    outputs:
+      patient-service: ${{ steps.changes.outputs.patient-service }}
+      appointment-service: ${{ steps.changes.outputs.appointment-service }}
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+#        with:
+#          fetch-depth: 0  # 👈 fetch full commit history
+
+      - name: Detect Changes
+        uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            patient-service:name: "Simple Application Deployment"
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'app/patient-service/**'
+      - 'app/appointment-service/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docker/**'
+      - 'app/**'
+      - 'k8s/**'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
+  PROJECT_NAME: devops-challenge
 
 jobs:
   detect-changes:
@@ -110,3 +153,37 @@ jobs:
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$
+
+
+  deploy:
+    needs: [detect-changes, build-appointment, build-patient]
+    if: github.ref == 'refs/heads/main' && (needs.build-appointment.result == 'success' || needs.build-patient.result == 'success' || needs.detect-changes.outputs.any == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Setup Kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.PROJECT_NAME }}-dev-eks
+      - name: Deploy to EKS
+        run: |
+          if [[ "${{ needs.build-appointment.result }}" == "success" || "${{ needs.detect-changes.outputs.appointment }}" == "true" ]]; then
+            sed -i "s|IMAGE_TAG|${{ github.sha }}|g" k8s/appointment-service/*.yaml || true
+            sed -i "s|ECR_REGISTRY|${{ env.ECR_REGISTRY }}|g" k8s/appointment-service/*.yaml || true
+            sed -i "s|PROJECT_NAME|${{ env.PROJECT_NAME }}|g" k8s/appointment-service/*.yaml || true
+            kubectl apply -f k8s/appointment-service/
+          fi
+
+          if [[ "${{ needs.build-patient.result }}" == "success" || "${{ needs.detect-changes.outputs.patient }}" == "true" ]]; then
+            sed -i "s|IMAGE_TAG|${{ github.sha }}|g" k8s/patient-service/*.yaml || true
+            sed -i "s|ECR_REGISTRY|${{ env.ECR_REGISTRY }}|g" k8s/patient-service/*.yaml || true
+            sed -i "s|PROJECT_NAME|${{ env.PROJECT_NAME }}|g" k8s/patient-service/*.yaml || true
+            kubectl apply -f k8s/patient-service/
+          fi
