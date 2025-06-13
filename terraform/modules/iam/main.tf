@@ -191,6 +191,24 @@ resource "aws_iam_role_policy" "eks_node_group_ecr" {
   })
 }
 
+
+
+# OIDC Identity provider
+data "tls_certificate" "cluster" {
+  url = aws_eks_cluster.main.identity[0].oidc[0].issuer
+}
+
+resource "aws_iam_openid_connect_provider" "cluster" {
+
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.cluster.certificates[0].sha1_fingerprint]
+  url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
+
+  tags = merge(var.tags, {
+    Name = "${var.cluster_name}-irsa"
+  })
+}
+
 # Service Account Role for AWS Load Balancer Controller
 resource "aws_iam_role" "aws_load_balancer_controller" {
   name = "${var.project_name}-${var.environment}-aws-load-balancer-controller"
