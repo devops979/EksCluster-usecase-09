@@ -166,7 +166,4 @@ module "k8s_config" {
   node_role_arn = module.iam.eks_node_group_role_arn
   user_arn      = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/root"
 
-  providers = {
-    kubernetes = kubernetes
-  }
 }
