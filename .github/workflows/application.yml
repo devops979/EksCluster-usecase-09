@@ -112,7 +112,7 @@ jobs:
       - name: Ensure Namespace Exists
         working-directory: ./k8s/
         run: |
-          kubectl get ns microservices || kubectl apply -f Namespace.yaml
+           kubectl apply -f namespace.yaml
 
       - name: Deploying appointment application in cluster
         working-directory: ./k8s/appointment-service
