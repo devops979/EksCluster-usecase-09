@@ -130,3 +130,6 @@ jobs:
             sed -i "s|PROJECT_NAME|${{ env.PROJECT_NAME }}|g" k8s/patient-service/*.yaml
             kubectl apply -f k8s/patient-service/
           fi
+      - name: Verify Cluster Access
+        run: |
+          kubectl get nodes          
