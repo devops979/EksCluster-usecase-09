@@ -1,0 +1,49 @@
+
+name: "Simple Application Deployment"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/patient-service/**'
+      - 'app/appointment-service/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docker/**'
+      - 'app/**'
+      - 'k8s/**'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
+  PROJECT_NAME: devops-challenge
+
+jobs:
+  debugging:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.32.0'
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.PROJECT_NAME }}-dev-eksnew
+
+      - name: Verify Cluster Access
+        run: kubectl get nodes
+
+      - name: Verify Deployment Access
+        run: |
+          kubectl get ns
+          kubectl get pods -n microservices
+          kubectl get svc -n microservices
