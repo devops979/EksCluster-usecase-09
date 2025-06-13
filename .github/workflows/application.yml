@@ -43,7 +43,6 @@ jobs:
               - 'app/patient-service/**'
             appointment-service:
               - 'app/appointment-service/**'
-
   build:
     runs-on: ubuntu-latest
     needs: detect-changes
@@ -59,18 +58,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
+        
       - name: Skip if no changes
+        if: |
+          (matrix.service == 'patient-service' && needs.detect-changes.outputs.patient_changed != 'true') ||
+          (matrix.service == 'appointment-service' && needs.detect-changes.outputs.appointment_changed != 'true')
         run: |
-          if [[ "${{ matrix.service }}" == "patient-service" && "${{ needs.detect-changes.outputs.patient-service }}" != "true" ]]; then
-            echo "No changes in patient-service. Skipping build."
-            exit 0
-          fi
-          if [[ "${{ matrix.service }}" == "appointment-service" && "${{ needs.detect-changes.outputs.appointment-service }}" != "true" ]]; then
-            echo "No changes in appointment-service. Skipping build."
-            exit 0
-          fi
-
+          echo "No changes in ${{ matrix.service }}. Skipping build."
+          exit 0
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -93,7 +88,6 @@ jobs:
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-
   deploy:
     runs-on: ubuntu-latest
     needs: [detect-changes, build]
@@ -115,21 +109,31 @@ jobs:
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.PROJECT_NAME }}-dev-eksnew
 
-      - name: Deploy to EKS
+      - name: Ensure Namespace Exists
+        working-directory: ./k8s/
+        run: |
+          kubectl get ns microservices || kubectl apply -f Namespace.yaml
+
+      - name: Deploying appointment application in cluster
+        working-directory: ./k8s/appointment-service
         run: |
           if [[ "${{ needs.detect-changes.outputs.appointment-service }}" == "true" ]]; then
             sed -i "s|IMAGE_TAG|${{ github.sha }}|g" k8s/appointment-service/*.yaml
             sed -i "s|ECR_REGISTRY|${{ env.ECR_REGISTRY }}|g" k8s/appointment-service/*.yaml
             sed -i "s|PROJECT_NAME|${{ env.PROJECT_NAME }}|g" k8s/appointment-service/*.yaml
-            kubectl apply -f k8s/appointment-service/
+            kubectl apply -f deployment.yaml -f service.yaml -f hpa.yaml -f serviceaccount.yaml
           fi
 
-          if [[ "${{ needs.detect-changes.outputs.patient-service }}" == "true" ]]; then
-            sed -i "s|IMAGE_TAG|${{ github.sha }}|g" k8s/patient-service/*.yaml
-            sed -i "s|ECR_REGISTRY|${{ env.ECR_REGISTRY }}|g" k8s/patient-service/*.yaml
-            sed -i "s|PROJECT_NAME|${{ env.PROJECT_NAME }}|g" k8s/patient-service/*.yaml
-            kubectl apply -f k8s/patient-service/
+      - name: Deploying patient application in cluster
+        working-directory: ./k8s/patient-service
+        run: |
+          if [[ "${{ needs.detect-changes.outputs.appointment-service }}" == "true" ]]; then
+            sed -i "s|IMAGE_TAG|${{ github.sha }}|g" k8s/appointment-service/*.yaml
+            sed -i "s|ECR_REGISTRY|${{ env.ECR_REGISTRY }}|g" k8s/appointment-service/*.yaml
+            sed -i "s|PROJECT_NAME|${{ env.PROJECT_NAME }}|g" k8s/appointment-service/*.yaml
+            kubectl apply -f deployment.yaml -f service.yaml -f hpa.yaml -f serviceaccount.yaml
           fi
+
       - name: Verify Cluster Access
         run: |
           kubectl get nodes 
