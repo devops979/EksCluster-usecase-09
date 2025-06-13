@@ -49,6 +49,8 @@ provider "kubernetes" {
 
 
 
+
+
 # Data sources
 data "aws_availability_zones" "available" {
   state = "available"
@@ -169,13 +171,13 @@ module "k8s_config" {
 }
 
 
-module "config_ssm" {
-  source = "../../modules/k8s-config"
-
-  kube_host     = data.aws_eks_cluster.eks.endpoint
-  kube_ca       = data.aws_eks_cluster.eks.certificate_authority[0].data
-  kube_token    = data.aws_eks_cluster_auth.eks.token
-  node_role_arn =  "arn:aws:iam::211125325699:role/aws-ssm-demo"
-  user_arn      = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/root"
-
+module "helm" {
+  source = "../../modules/helm"
+  cluster_id = module.eks.cluster_id
+  cluster_endpoint = module.eks.cluster_endpoint
+  cluster_certificate_authority_data = module.eks.cluster_certificate_authority_data
+  lbc_iam_depends_on = module.iam.aws_load_balancer_controller_role_name
+  lbc_iam_role_arn   = module.iam.aws_load_balancer_controller_role_arn
+  vpc_id             = module.vpc.vpc_id
+  aws_region         = var.aws_region
 }
