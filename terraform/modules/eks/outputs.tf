@@ -76,5 +76,17 @@ output "node_security_group_id" {
 
 output "oidc_provider_arn" {
   description = "ARN of the OIDC Provider if enabled"
-  value       = var.enable_irsa ? aws_iam_openid_connect_provider.cluster[0].arn : null
+  value       = aws_iam_openid_connect_provider.cluster.arn 
 }
+
+# Extract OIDC Provider from OIDC Provider ARN
+locals {
+    aws_iam_oidc_connect_provider_extract_from_arn = element(split("oidc-provider/", "${aws_iam_openid_connect_provider.cluster.arn}"), 1)
+}
+
+# Output: AWS IAM Open ID Connect Provider
+output "aws_iam_openid_connect_provider_extract_from_arn" {
+  description = "AWS IAM Open ID Connect Provider extract from ARN"
+   value = local.aws_iam_oidc_connect_provider_extract_from_arn
+}
+
