@@ -132,4 +132,10 @@ jobs:
           fi
       - name: Verify Cluster Access
         run: |
-          kubectl get nodes          
+          kubectl get nodes 
+
+      - name: Verify Deployment Access
+        run: |
+          kubectl get ns
+          kubectl get pods -n microservices
+          kubectl get svc -n microservices
