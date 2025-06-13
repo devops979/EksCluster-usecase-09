@@ -1,24 +1,20 @@
-name: "Application Deployment"
+name: "Simple Application Deployment"
 
 on:
   push:
-    branches:
-      - main
-      - develop
+    branches: [main, develop]
     paths:
       - 'docker/**'
       - 'app/**'
       - 'k8s/**'
-
   pull_request:
-    branches:
-      - main
-      - develop
+    branches: [main, develop]
     paths:
       - 'docker/**'
       - 'app/**'
       - 'k8s/**'
-  workflow_dispatch:      
+  workflow_dispatch:
+
 permissions:
   id-token: write
   contents: read
@@ -31,134 +27,79 @@ env:
 jobs:
 
   detect-changes:
-    name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      appointment-changed: ${{ steps.changes.outputs.appointment }}
-      patient-changed: ${{ steps.changes.outputs.patient }}
-      k8s-changed: ${{ steps.changes.outputs.k8s }}
-      any-changed: ${{ steps.changes.outputs.any }}
+      appointment: ${{ steps.set.outputs.appointment }}
+      patient: ${{ steps.set.outputs.patient }}
+      any: ${{ steps.set.outputs.any }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+#        with:
+#          fetch-depth: 0
 
-      - id: changes
+      - id: set
         run: |
-          base_sha="${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || 'HEAD~1' }}"
-          head_sha="${{ github.sha }}"
-          changed_files=$(git diff --name-only $base_sha..$head_sha)
+          git fetch origin main --depth=1
+          changed=$(git diff --name-only origin/main)
 
-          appointment_changed=$(echo "$changed_files" | grep -E "^docker/appointment-service/|^app/appointment-service/" | wc -l)
-          patient_changed=$(echo "$changed_files" | grep -E "^docker/patient-service/|^app/patient-service/" | wc -l)
-          
-          k8s_changed=$(echo "$changed_files" | grep -E "^k8s/" | wc -l)
+          echo "appointment=$(echo "$changed" | grep -qE 'app/appointment-service|docker/appointment-service' && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "patient=$(echo "$changed" | grep -qE 'app/patient-service|docker/patient-service' && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "any=$(echo "$changed" | grep -qE 'app/|docker/|k8s/' && echo true || echo false)" >> $GITHUB_OUTPUT
 
-          echo "appointment=$([[ $appointment_changed -gt 0 ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
-          echo "patient=$([[ $patient_changed -gt 0 ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
-         
-          echo "k8s=$([[ $k8s_changed -gt 0 ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
-          echo "any=$([[ $appointment_changed -gt 0 || $patient_changed -gt 0 || $flask_changed -gt 0 || $k8s_changed -gt 0 ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
-
-  build-and-push:
-    name: Build and Push Docker Images
+  build-appointment:
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.any == 'true'
-  
-    strategy:
-      matrix:
-        include:
-          - service: appointment-service
-            path: app/appointment-service
-            context: .
-            should_build: ${{ needs.detect-changes.outputs.appointment-changed }}
-          - service: patient-service
-            path: app/patient-service
-            context: .
-            should_build: ${{ needs.detect-changes.outputs.patient-changed }}
-  
+    if: needs.detect-changes.outputs.appointment == 'true'
     steps:
       - uses: actions/checkout@v4
-        if: matrix.should_build == 'true'
-  
-      - name: Configure AWS credentials (OIDC)
-        if: matrix.should_build == 'true'
+
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
-  
+
       - uses: aws-actions/amazon-ecr-login@v2
-        if: matrix.should_build == 'true'
-  
-      - uses: docker/setup-buildx-action@v3
-        if: matrix.should_build == 'true'
-  
-      - name: Build and Push Docker Image
-        if: matrix.should_build == 'true'
-        env:
-          IMAGE_TAG: ${{ github.sha }}
-          ECR_REPOSITORY: ${{ env.PROJECT_NAME }}-${{ matrix.service }}
+
+      - name: Build and Push appointment-service
         run: |
-          docker build -f ${{ matrix.path }}/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ${{ matrix.context }}
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          IMAGE_TAG=${{ github.sha }}
+          REPO=${{ env.PROJECT_NAME }}-appointment-service
+          docker build -f docker/appointment-service/Dockerfile -t $ECR_REGISTRY/$REPO:$IMAGE_TAG -t $ECR_REGISTRY/$REPO:latest .
+          docker push $ECR_REGISTRY/$REPO:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$REPO:latest
 
-
-  install-alb-controller:
-    name: Install AWS Load Balancer Controller
+  build-patient:
     runs-on: ubuntu-latest
-    needs: build-and-push
+    needs: detect-changes
+    if: needs.detect-changes.outputs.patient == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push patient-service
+        run: |
+          IMAGE_TAG=${{ github.sha }}
+          REPO=${{ env.PROJECT_NAME }}-patient-service
+          docker build -f docker/patient-service/Dockerfile -t $ECR_REGISTRY/$REPO:$IMAGE_TAG -t $ECR_REGISTRY/$REPO:latest .
+          docker push $ECR_REGISTRY/$REPO:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$REPO:latest
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [build-appointment, build-patient]
     if: github.ref == 'refs/heads/main'
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - uses: azure/setup-kubectl@v3
-        with:
-          version: 'v1.28.0'
-
-      - uses: azure/setup-helm@v4
-
-      - name: Update kubeconfig
-        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.PROJECT_NAME }}-dev-eks
-
-      - name: Install ALB Controller CRDs
-        run: kubectl apply -k "github.com/aws/eks-charts/stable/aws-load-balancer-controller//crds?ref=master"
-
-      - name: Add and Update Helm Repo
-        run: |
-          helm repo add eks https://aws.github.io/eks-charts
-          helm repo update
-
-      - name: Install ALB Controller
-        run: |
-          helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
-            -n kube-system \
-            --set clusterName=${{ env.PROJECT_NAME }}-dev-eks \
-            --set serviceAccount.create=false \
-            --set serviceAccount.name=aws-load-balancer-controller \
-            --set region=${{ env.AWS_REGION }} \
-            --set vpcId=${{ secrets.VPC_ID }} \
-            --set image.tag="v2.6.2"
-
-  deploy-to-eks:
-    name: Deploy to EKS
-    runs-on: ubuntu-latest
-    needs: [detect-changes, install-alb-controller]
-    if: needs.detect-changes.outputs.any == 'true' && github.ref == 'refs/heads/main'
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
@@ -171,30 +112,11 @@ jobs:
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.PROJECT_NAME }}-dev-eks
 
-      - name: Update Kubernetes manifests
+      - name: Deploy to EKS
         run: |
-          for service in appointment-service patient-service flask-api; do
+          for service in appointment-service patient-service; do
             sed -i "s|IMAGE_TAG|${{ github.sha }}|g" k8s/$service/*.yaml || true
             sed -i "s|ECR_REGISTRY|${{ env.ECR_REGISTRY }}|g" k8s/$service/*.yaml || true
             sed -i "s|PROJECT_NAME|${{ env.PROJECT_NAME }}|g" k8s/$service/*.yaml || true
+            kubectl apply -f k8s/$service/
           done
-
-      - name: Apply Kubernetes Manifests
-        run: |
-          kubectl apply -f k8s/namespace.yaml
-
-          if [ "${{ needs.detect-changes.outputs.appointment-changed }}" == "true" ] || [ "${{ needs.detect-changes.outputs.k8s-changed }}" == "true" ]; then
-            kubectl apply -f k8s/appointment-service/
-          fi
-
-          if [ "${{ needs.detect-changes.outputs.patient-changed }}" == "true" ] || [ "${{ needs.detect-changes.outputs.k8s-changed }}" == "true" ]; then
-            kubectl apply -f k8s/patient-service/
-          fi
-
-
-
-      - name: Verify Deployments
-        run: |
-          kubectl wait --for=condition=available --timeout=300s deployment/appointment-service -n microservices || true
-          kubectl wait --for=condition=available --timeout=300s deployment/patient-service -n microservices || true
-          kubectl get ingress -n microservices
