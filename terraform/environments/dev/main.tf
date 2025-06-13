@@ -99,8 +99,7 @@ module "ecr" {
 
   repositories = [
     "appointment-service",
-    "patient-service",
-    "flask-api"
+    "patient-service"
   ]
 
   tags = local.common_tags
