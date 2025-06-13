@@ -4,7 +4,6 @@ on:
   push:
     branches: [main, develop]
     paths:
-    paths:
       - 'app/patient-service/**'
       - 'app/appointment-service/**'
   pull_request:
