@@ -19,16 +19,16 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION: ${{{{ vars.AWS_REGION }}}}
-  ECR_REGISTRY: ${{{{ secrets.AWS_ACCOUNT_ID }}}}.dkr.ecr.${{{{ vars.AWS_REGION }}}}.amazonaws.com
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
   PROJECT_NAME: devops-challenge
 
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      patient-service: ${{{{ steps.filter.outputs.patient-service }}}}
-      appointment-service: ${{{{ steps.filter.outputs.appointment-service }}}}
+      patient-service: ${{ steps.filter.outputs.patient-service }}
+      appointment-service: ${{ steps.filter.outputs.appointment-service }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -56,8 +56,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{{{ vars.AWS_ROLE_ARN }}}}
-          aws-region: ${{{{ env.AWS_REGION }}}}
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -66,9 +66,9 @@ jobs:
       - name: Build and push Docker image
         working-directory: app/patient-service
         env:
-          ECR_REGISTRY: ${{{{ steps.login-ecr.outputs.registry }}}}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: demo-ecs-patitent
-          IMAGE_TAG: ${{{{ github.sha }}}}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
@@ -88,8 +88,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{{{ vars.AWS_ROLE_ARN }}}}
-          aws-region: ${{{{ env.AWS_REGION }}}}
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -98,9 +98,9 @@ jobs:
       - name: Build and push Docker image
         working-directory: app/appointment-service
         env:
-          ECR_REGISTRY: ${{{{ steps.login-ecr.outputs.registry }}}}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: demo-ecs-appointment
-          IMAGE_TAG: ${{{{ github.sha }}}}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
@@ -117,8 +117,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{{{ secrets.AWS_ROLE_TO_ASSUME }}}}
-          aws-region: ${{{{ env.AWS_REGION }}}}
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Kubectl
         uses: azure/setup-kubectl@v3
@@ -126,20 +126,20 @@ jobs:
           version: 'v1.28.0'
 
       - name: Update kubeconfig
-        run: aws eks update-kubeconfig --region ${{{{ env.AWS_REGION }}}} --name ${{{{ env.PROJECT_NAME }}}}-dev-eks
+        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.PROJECT_NAME }}-dev-eks
 
       - name: Deploy to EKS
         run: |
-          if [[ "${{{{ needs.detect-changes.outputs.appointment-service }}}}" == "true" ]]; then
-            sed -i "s|IMAGE_TAG|${{{{ github.sha }}}}|g" k8s/appointment-service/*.yaml
-            sed -i "s|ECR_REGISTRY|${{{{ env.ECR_REGISTRY }}}}|g" k8s/appointment-service/*.yaml
-            sed -i "s|PROJECT_NAME|${{{{ env.PROJECT_NAME }}}}|g" k8s/appointment-service/*.yaml
+          if [[ "${{ needs.detect-changes.outputs.appointment-service }}" == "true" ]]; then
+            sed -i "s|IMAGE_TAG|${{ github.sha }}|g" k8s/appointment-service/*.yaml
+            sed -i "s|ECR_REGISTRY|${{ env.ECR_REGISTRY }}|g" k8s/appointment-service/*.yaml
+            sed -i "s|PROJECT_NAME|${{ env.PROJECT_NAME }}|g" k8s/appointment-service/*.yaml
             kubectl apply -f k8s/appointment-service/
           fi
 
-          if [[ "${{{{ needs.detect-changes.outputs.patient-service }}}}" == "true" ]]; then
-            sed -i "s|IMAGE_TAG|${{{{ github.sha }}}}|g" k8s/patient-service/*.yaml
-            sed -i "s|ECR_REGISTRY|${{{{ env.ECR_REGISTRY }}}}|g" k8s/patient-service/*.yaml
-            sed -i "s|PROJECT_NAME|${{{{ env.PROJECT_NAME }}}}|g" k8s/patient-service/*.yaml
+          if [[ "${{ needs.detect-changes.outputs.patient-service }}" == "true" ]]; then
+            sed -i "s|IMAGE_TAG|${{ github.sha }}|g" k8s/patient-service/*.yaml
+            sed -i "s|ECR_REGISTRY|${{ env.ECR_REGISTRY }}|g" k8s/patient-service/*.yaml
+            sed -i "s|PROJECT_NAME|${{ env.PROJECT_NAME }}|g" k8s/patient-service/*.yaml
             kubectl apply -f k8s/patient-service/
           fi
