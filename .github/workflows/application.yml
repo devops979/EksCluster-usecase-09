@@ -1,51 +1,7 @@
 name: "Simple Application Deployment"
-
 on:
   push:
-    branches: [main, develop]
-    paths:
-      - 'app/patient-service/**'
-      - 'app/appointment-service/**'
-  pull_request:
     branches: [main]
-    paths:
-      - 'docker/**'
-      - 'app/**'
-      - 'k8s/**'
-  workflow_dispatch:
-
-permissions:
-  id-token: write
-  contents: read
-
-env:
-  AWS_REGION: ${{ vars.AWS_REGION }}
-  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
-  PROJECT_NAME: devops-challenge
-jobs:
-  detect-changes:
-    name: Detect Changes
-    runs-on: self-hosted
-    outputs:
-      patient-service: ${{ steps.changes.outputs.patient-service }}
-      appointment-service: ${{ steps.changes.outputs.appointment-service }}
-    
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-#        with:
-#          fetch-depth: 0  # 👈 fetch full commit history
-
-      - name: Detect Changes
-        uses: dorny/paths-filter@v2
-        id: changes
-        with:
-          filters: |
-            patient-service:name: "Simple Application Deployment"
-
-on:
-  push:
-    branches: [main, develop]
     paths:
       - 'app/patient-service/**'
       - 'app/appointment-service/**'
