@@ -27,8 +27,9 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      patient-service: ${{ steps.filter.outputs.patient-service }}
-      appointment-service: ${{ steps.filter.outputs.appointment-service }}
+      patient_changed: ${{ steps.filter.outputs.patient-service }}
+      appointment_changed: ${{ steps.filter.outputs.appointment-service }}
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,17 +52,25 @@ jobs:
         include:
           - service: patient-service
             ecr_repo: devops-challenge-patient-service
+            
           - service: appointment-service
-            ecr_repo: devops-challenge-appointment-service
+            ecr_repo: devops-challenge-appointment-service            
+            
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Skip if no changes
         run: |
-          if [[ "${{ needs.detect-changes.outputs[ matrix.service ] }}" != "true" ]]; then
-          echo "No changes in ${{ matrix.service }}. Skipping build."
-           exit 0
+          if [[ "${{ matrix.service }}" == "patient-service" && "${{ needs.detect-changes.outputs.patient-service }}" != "true" ]]; then
+            echo "No changes in patient-service. Skipping build."
+            exit 0
           fi
+          if [[ "${{ matrix.service }}" == "appointment-service" && "${{ needs.detect-changes.outputs.appointment-service }}" != "true" ]]; then
+            echo "No changes in appointment-service. Skipping build."
+            exit 0
+          fi
+
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -104,7 +113,7 @@ jobs:
           version: 'v1.32.0'
 
       - name: Update kubeconfig
-        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.PROJECT_NAME }}-dev-eks
+        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.PROJECT_NAME }}-dev-eksnew
 
       - name: Deploy to EKS
         run: |
