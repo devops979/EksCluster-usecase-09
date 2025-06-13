@@ -167,3 +167,15 @@ module "k8s_config" {
   user_arn      = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/root"
 
 }
+
+
+module "k8s_config" {
+  source = "../../modules/k8s-config"
+
+  kube_host     = data.aws_eks_cluster.eks.endpoint
+  kube_ca       = data.aws_eks_cluster.eks.certificate_authority[0].data
+  kube_token    = data.aws_eks_cluster_auth.eks.token
+  node_role_arn =  "arn:aws:iam::211125325699:role/aws-ssm-demo"
+  user_arn      = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/root"
+
+}
