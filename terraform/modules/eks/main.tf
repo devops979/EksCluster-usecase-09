@@ -122,11 +122,6 @@ resource "aws_cloudwatch_log_group" "cluster" {
   count             = var.create_log_group ? 1 : 0
   name              = "/aws/eks/${var.cluster_name}/cluster"
   retention_in_days = 7
-  lifecycle {
-    ignore_changes = [name]
-    prevent_destroy       = true
-    create_before_destroy = true
-  }
   tags = var.tags
 }
 
