@@ -5,7 +5,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = "~> 5.9"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -112,8 +112,10 @@ module "iam" {
   project_name = var.project_name
   environment  = var.environment
   cluster_name = local.cluster_name
-
   tags = local.common_tags
+  cluster_oidc_issuer_url= module.eks.oidc_provider_arn
+  aws_iam_openid_connect_provider_extract_from_arn=module.eks.aws_iam_openid_connect_provider_extract_from_arn
+  
 }
 
 # EKS Module
