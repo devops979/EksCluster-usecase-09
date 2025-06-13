@@ -63,6 +63,10 @@ jobs:
             -out=tfplan
 
 
+      - name: Terraform import
+        if: github.event_name != 'pull_request'
+        run: terraform import module.eks.aws_cloudwatch_log_group.cluster[0] /aws/eks/devops-challenge-dev-eksnew/cluster
+
       - name: Terraform Apply
         if: github.event_name != 'pull_request'
         run: terraform apply -auto-approve tfplan
