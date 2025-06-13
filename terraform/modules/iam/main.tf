@@ -206,19 +206,14 @@ resource "aws_iam_role" "aws_load_balancer_controller" {
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
           StringEquals = {
-            var.aws_iam_openid_connect_provider_extract_from_arn:aud = "sts.amazonaws.com",
-            var.aws_iam_openid_connect_provider_extract_from_arn:sub = "system:serviceaccount:kube-system:aws-load-balancer-controller"
+            "${var.aws_iam_openid_connect_provider_extract_from_arn}:aud" = "sts.amazonaws.com",
+            "${var.aws_iam_openid_connect_provider_extract_from_arn}:sub" = "system:serviceaccount:kube-system:aws-load-balancer-controller"
           }
         }
       }
     ]
   })
-
-  tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-aws-load-balancer-controller"
-  })
 }
-
 
 resource "aws_iam_role_policy_attachment" "aws_load_balancer_controller" {
   policy_arn = "arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess"
