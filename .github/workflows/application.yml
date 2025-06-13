@@ -1,4 +1,5 @@
 name: "Simple Application Deployment"
+
 on:
   push:
     branches: [main]
@@ -34,10 +35,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # fetch full commit history
+          fetch-depth: 0
 
       - name: Detect Changes
-        uses: dorny/paths-filter@v2
+        uses: dorny/paths-filter@v3
         id: changes
         with:
           filters: |
@@ -108,36 +109,45 @@ jobs:
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$
-
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
   deploy:
-    needs: [detect-changes, build-appointment, build-patient]
-    if: github.ref == 'refs/heads/main' && (needs.build-appointment.result == 'success' || needs.build-patient.result == 'success' || needs.detect-changes.outputs.any == 'true')
+    name: Deploy to EKS
+    needs: [detect-changes, build-appointment-service, build-patient-service]
+    if: github.ref == 'refs/heads/main' && (
+      needs.build-appointment-service.result == 'success' ||
+      needs.build-patient-service.result == 'success' ||
+      needs.detect-changes.outputs.appointment-service == 'true' ||
+      needs.detect-changes.outputs.patient-service == 'true')
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
+
       - name: Setup Kubectl
         uses: azure/setup-kubectl@v3
         with:
           version: 'v1.28.0'
+
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.PROJECT_NAME }}-dev-eks
+
       - name: Deploy to EKS
         run: |
-          if [[ "${{ needs.build-appointment.result }}" == "success" || "${{ needs.detect-changes.outputs.appointment }}" == "true" ]]; then
+          if [[ "${{ needs.build-appointment-service.result }}" == "success" || "${{ needs.detect-changes.outputs.appointment-service }}" == "true" ]]; then
             sed -i "s|IMAGE_TAG|${{ github.sha }}|g" k8s/appointment-service/*.yaml || true
             sed -i "s|ECR_REGISTRY|${{ env.ECR_REGISTRY }}|g" k8s/appointment-service/*.yaml || true
             sed -i "s|PROJECT_NAME|${{ env.PROJECT_NAME }}|g" k8s/appointment-service/*.yaml || true
             kubectl apply -f k8s/appointment-service/
           fi
 
-          if [[ "${{ needs.build-patient.result }}" == "success" || "${{ needs.detect-changes.outputs.patient }}" == "true" ]]; then
+          if [[ "${{ needs.build-patient-service.result }}" == "success" || "${{ needs.detect-changes.outputs.patient-service }}" == "true" ]]; then
             sed -i "s|IMAGE_TAG|${{ github.sha }}|g" k8s/patient-service/*.yaml || true
             sed -i "s|ECR_REGISTRY|${{ env.ECR_REGISTRY }}|g" k8s/patient-service/*.yaml || true
             sed -i "s|PROJECT_NAME|${{ env.PROJECT_NAME }}|g" k8s/patient-service/*.yaml || true
