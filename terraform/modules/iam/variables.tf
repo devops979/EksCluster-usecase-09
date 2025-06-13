@@ -1,3 +1,5 @@
+
+
 # IAM Module Variables
 
 variable "project_name" {
@@ -19,6 +21,11 @@ variable "cluster_oidc_issuer_url" {
   description = "The URL on the EKS cluster OIDC Issuer"
   type        = string
   default     = ""
+}
+
+variable "aws_iam_openid_connect_provider_extract_from_arn" {
+  description = "The ARN on the EKS cluster OIDC Issuer"
+  type        = string
 }
 
 variable "tags" {
