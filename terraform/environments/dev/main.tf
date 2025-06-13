@@ -160,17 +160,13 @@ data "aws_eks_cluster_auth" "eks" {
 module "k8s_config" {
   source = "../../modules/k8s-config"
 
-  kube_host  = data.aws_eks_cluster.eks.endpoint
-  kube_ca    = data.aws_eks_cluster.eks.certificate_authority[0].data
-  kube_token = data.aws_eks_cluster_auth.eks.token
-
+  kube_host     = data.aws_eks_cluster.eks.endpoint
+  kube_ca       = data.aws_eks_cluster.eks.certificate_authority[0].data
+  kube_token    = data.aws_eks_cluster_auth.eks.token
   node_role_arn = module.iam.eks_node_group_role_arn
   user_arn      = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/root"
 
-  depends_on = [module.eks]
+  providers = {
+    kubernetes = kubernetes
+  }
 }
-
-
-
-
-
