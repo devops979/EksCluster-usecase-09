@@ -53,9 +53,15 @@ jobs:
             ecr_repo: devops-challenge-patient-service
           - service: appointment-service
             ecr_repo: devops-challenge-appointment-service
-    if: needs.detect-changes.outputs[matrix.service] == 'true'
     steps:
       - uses: actions/checkout@v4
+
+      - name: Skip if no changes
+        run: |
+          if [[ "${{ needs.detect-changes.outputs[ matrix.service ] }}" != "true" ]]; then
+          echo "No changes in ${{ matrix.service }}. Skipping build."
+           exit 0
+          fi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
