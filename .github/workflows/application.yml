@@ -44,9 +44,10 @@ jobs:
               - 'app/patient-service/**'
             appointment-service:
               - 'app/appointment-service/**'
+              
   build-patient-service:
     name: Build Patient Service
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: detect-changes
     if: needs.detect-changes.outputs.patient-service == 'true'
     steps:
@@ -77,7 +78,7 @@ jobs:
 
   build-appointment-service:
     name: Build Appointment Service
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: detect-changes
     if: needs.detect-changes.outputs.appointment-service == 'true'
     steps:
@@ -107,7 +108,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
   deploy:
     runs-on: self-hosted
-    needs: [detect-changes, build]
+    needs: [detect-changes, build-appointment-service, build-patient-service ]
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
