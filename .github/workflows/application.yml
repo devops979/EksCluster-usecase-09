@@ -4,11 +4,11 @@ on:
   push:
     branches: [main, develop]
     paths:
-      - 'docker/**'
-      - 'app/**'
-      - 'k8s/**'
+    paths:
+      - 'app/patient-service/**'
+      - 'app/appointment-service/**'
   pull_request:
-    branches: [main, develop]
+    branches: [main]
     paths:
       - 'docker/**'
       - 'app/**'
@@ -23,68 +23,100 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION }}
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
   PROJECT_NAME: devops-challenge
-
 jobs:
-
   detect-changes:
-    runs-on: ubuntu-latest
+    name: Detect Changes
+    runs-on: self-hosted
     outputs:
-      appointment: ${{ steps.set.outputs.appointment }}
-      patient: ${{ steps.set.outputs.patient }}
-      any: ${{ steps.set.outputs.any }}
+      patient-service: ${{ steps.changes.outputs.patient-service }}
+      appointment-service: ${{ steps.changes.outputs.appointment-service }}
+    
     steps:
-      - uses: actions/checkout@v4
-      - id: set
+      - name: Checkout Code
+        uses: actions/checkout@v4
+#        with:
+#          fetch-depth: 0  # 👈 fetch full commit history
+
+      - name: Detect Changes
+        uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            patient-service:
+              - 'app/patient-service/**'
+            appointment-service:
+              - 'app/appointment-service/**'
+
+
+      - name: Set Outputs
+        id: set
         run: |
-          git fetch origin main --depth=1
-          changed=$(git diff --name-only origin/main)
-          echo "Detected changes: $changed"
+          echo "patient-service=${{ steps.changes.outputs.patient-service }}" >> "$GITHUB_OUTPUT"
+          echo "appointment-service=${{ steps.changes.outputs.appointment-service }}" >> "$GITHUB_OUTPUT"
 
-          echo "appointment=$(echo "$changed" | grep -qE 'app/appointment-service/|docker/appointment-service/|k8s/appointment-service/' && echo true || echo false)" >> $GITHUB_OUTPUT
-          echo "patient=$(echo "$changed" | grep -qE 'app/patient-service/|docker/patient-service/|k8s/patient-service/' && echo true || echo false)" >> $GITHUB_OUTPUT
-          echo "any=$(echo "$changed" | grep -qE 'app/|docker/|k8s/' && echo true || echo false)" >> $GITHUB_OUTPUT
-
-  build-appointment:
+  build-patient-service:
+    name: Build Patient Service
+    runs-on: self-hosted
     needs: detect-changes
-    if: needs.detect-changes.outputs.appointment == 'true'
-    runs-on: ubuntu-latest
+    if: needs.detect-changes.outputs.patient-service == 'true'
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Configure AWS credentials
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v2
-      - name: Build and Push appointment-service
-        run: |
-          IMAGE_TAG=${{ github.sha }}
-          REPO=${{ env.PROJECT_NAME }}-appointment-service
-          docker build -f docker/appointment-service/Dockerfile -t $ECR_REGISTRY/$REPO:$IMAGE_TAG -t $ECR_REGISTRY/$REPO:latest .
-          docker push $ECR_REGISTRY/$REPO:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$REPO:latest
 
-  build-patient:
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image
+        working-directory: app/patient-service
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: demo-ecs-patitent
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+  build-appointment-service:
+    name: Build Appointment Service
+    runs-on: self-hosted
     needs: detect-changes
-    if: needs.detect-changes.outputs.patient == 'true'
-    runs-on: ubuntu-latest
+    if: needs.detect-changes.outputs.appointment-service == 'true'
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Configure AWS credentials
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
       - name: Login to Amazon ECR
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-      - name: Build and Push patient-service
+
+      - name: Build, tag, and push image
+        working-directory: app/appointment-service
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: demo-ecs-appointment
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          IMAGE_TAG=${{ github.sha }}
-          REPO=${{ env.PROJECT_NAME }}-patient-service
-          docker build -f docker/patient-service/Dockerfile -t $ECR_REGISTRY/$REPO:$IMAGE_TAG -t $ECR_REGISTRY/$REPO:latest .
-          docker push $ECR_REGISTRY/$REPO:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$REPO:latest
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
   deploy:
     needs: [detect-changes, build-appointment, build-patient]
