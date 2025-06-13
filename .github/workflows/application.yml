@@ -25,49 +25,35 @@ env:
 
 jobs:
   detect-changes:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       patient_changed: ${{ steps.filter.outputs.patient-service }}
       appointment_changed: ${{ steps.filter.outputs.appointment-service }}
-
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Checkout Code
+        uses: actions/checkout@v4
+#        with:
+#          fetch-depth: 0
 
-      - id: filter
+      - name: Detect Changes
         uses: dorny/paths-filter@v2
+        id: changes
         with:
           filters: |
             patient-service:
               - 'app/patient-service/**'
             appointment-service:
               - 'app/appointment-service/**'
-  build:
+  build-patient-service:
+    name: Build Patient Service
     runs-on: ubuntu-latest
     needs: detect-changes
-    strategy:
-      matrix:
-        include:
-          - service: patient-service
-            ecr_repo: devops-challenge-patient-service
-            
-          - service: appointment-service
-            ecr_repo: devops-challenge-appointment-service            
-            
-
+    if: needs.detect-changes.outputs.patient-service == 'true'
     steps:
-      - uses: actions/checkout@v4
-        
-      - name: Skip if no changes
-        if: |
-          (matrix.service == 'patient-service' && needs.detect-changes.outputs.patient_changed != 'true') ||
-          (matrix.service == 'appointment-service' && needs.detect-changes.outputs.appointment_changed != 'true')
-        run: |
-          echo "No changes in ${{ matrix.service }}. Skipping build."
-          exit 0
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
@@ -77,11 +63,42 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push Docker image
-        working-directory: app/${{ matrix.service }}
+      - name: Build, tag, and push image
+        working-directory: app/patient-service
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ matrix.ecr_repo }}
+          ECR_REPOSITORY: devops-challenge-patient-service
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+  build-appointment-service:
+    name: Build Appointment Service
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.appointment-service == 'true'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image
+        working-directory: app/appointment-service
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: devops-challenge-appointment-service
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
@@ -89,7 +106,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [detect-changes, build]
     if: github.ref == 'refs/heads/main'
     steps:
