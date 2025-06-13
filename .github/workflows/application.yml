@@ -50,16 +50,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
-
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
-
       - name: Build and Push appointment-service
         run: |
           IMAGE_TAG=${{ github.sha }}
@@ -67,22 +64,20 @@ jobs:
           docker build -f docker/appointment-service/Dockerfile -t $ECR_REGISTRY/$REPO:$IMAGE_TAG -t $ECR_REGISTRY/$REPO:latest .
           docker push $ECR_REGISTRY/$REPO:$IMAGE_TAG
           docker push $ECR_REGISTRY/$REPO:latest
+
   build-patient:
     needs: detect-changes
     if: needs.detect-changes.outputs.patient == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
-
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
-
       - name: Build and Push patient-service
         run: |
           IMAGE_TAG=${{ github.sha }}
@@ -97,21 +92,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
-
       - name: Setup Kubectl
         uses: azure/setup-kubectl@v3
         with:
           version: 'v1.28.0'
-
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.PROJECT_NAME }}-dev-eks
-
       - name: Deploy to EKS
         run: |
           if [[ "${{ needs.build-appointment.result }}" == "success" || "${{ needs.detect-changes.outputs.appointment }}" == "true" ]]; then
