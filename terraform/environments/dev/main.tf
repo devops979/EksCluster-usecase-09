@@ -1,6 +1,6 @@
 # Development Environment Configuration
 terraform {
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.12.0"
 
   required_providers {
     aws = {
@@ -10,6 +10,7 @@ terraform {
     kubernetes = {
       source  = "hashicorp/kubernetes"
       version = "~> 2.24.0"
+      configuration_aliases = [kubernetes.eks]  # Critical addition for provider alias
     }
     helm = {
       source  = "hashicorp/helm"
@@ -22,14 +23,13 @@ terraform {
     key          = "usecase-09/workspace/terraform.tfstate"
     region       = "us-east-1"
     encrypt      = true
-    use_lockfile = true # New approach for state locking
+    use_lockfile = true
   }
 }
 
-# Provider configuration
+# Provider configurations
 provider "aws" {
   region = var.aws_region
-
   default_tags {
     tags = {
       Environment = var.environment
@@ -41,15 +41,44 @@ provider "aws" {
   }
 }
 
+# Default kubernetes provider
 provider "kubernetes" {
-  host                   = data.aws_eks_cluster.eks.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.eks.certificate_authority[0].data)
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
   token                  = data.aws_eks_cluster_auth.eks.token
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args = [
+      "eks",
+      "get-token",
+      "--cluster-name",
+      module.eks.eks_cluster_name,
+      "--region",
+      var.aws_region
+    ]
+  }
 }
 
-
-
-
+# Aliased kubernetes provider for EKS
+provider "kubernetes" {
+  alias                  = "eks"
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  token                  = data.aws_eks_cluster_auth.eks.token
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args = [
+      "eks",
+      "get-token",
+      "--cluster-name",
+      module.eks.eks_cluster_name,
+      "--region",
+      var.aws_region
+    ]
+  }
+}
 
 # Data sources
 data "aws_availability_zones" "available" {
@@ -58,10 +87,11 @@ data "aws_availability_zones" "available" {
 
 data "aws_caller_identity" "current" {}
 
+
+
 # Local variables
 locals {
   cluster_name = "${var.project_name}-${var.environment}-eksnew"
-
   common_tags = {
     Environment = var.environment
     Project     = var.project_name
@@ -106,16 +136,13 @@ module "ecr" {
 }
 
 # IAM Module
-module "iam" {
-  source = "../../modules/iam"
+module "iam_core" {
+  source = "../../modules/iam_core"
 
   project_name = var.project_name
   environment  = var.environment
   cluster_name = local.cluster_name
-  tags = local.common_tags
-  cluster_oidc_issuer_url= module.eks.oidc_provider_arn
-  aws_iam_openid_connect_provider_extract_from_arn=module.eks.aws_iam_openid_connect_provider_extract_from_arn
-  
+  tags         = local.common_tags
 }
 
 # EKS Module
@@ -133,8 +160,8 @@ module "eks" {
   cluster_version  = var.cluster_version
   create_log_group = true
   # IAM roles
-  cluster_service_role_arn = module.iam.eks_cluster_role_arn
-  node_group_role_arn      = module.iam.eks_node_group_role_arn
+  cluster_service_role_arn = module.iam_core.eks_cluster_role_arn
+  node_group_role_arn      = module.iam_core.eks_node_group_role_arn
 
   # Node group configuration
   node_groups = var.node_groups
@@ -147,17 +174,32 @@ module "eks" {
 
   depends_on = [
     module.vpc,
-    module.iam
+    module.iam_core
   ]
 }
 
+data "aws_iam_openid_connect_provider" "eks" {
+  url = module.eks.cluster_oidc_issuer_url
+}
+
+module "iam_irsa" {
+  source = "../../modules/iam_irsa"
+
+  project_name                          = var.project_name
+  environment                           = var.environment
+  cluster_oidc_provider_arn             = data.aws_iam_openid_connect_provider.eks.arn
+  cluster_oidc_issuer_url               = module.eks.cluster_oidc_issuer_url
+  aws_iam_openid_connect_provider_extract_from_arn = replace(data.aws_iam_openid_connect_provider.eks.arn, "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/", "")
+}
+
+
 data "aws_eks_cluster" "eks" {
-  name = module.eks.eks_cluster_name
+  name       = module.eks.eks_cluster_name
   depends_on = [module.eks]
 }
 
 data "aws_eks_cluster_auth" "eks" {
-  name = module.eks.eks_cluster_name
+  name       = module.eks.eks_cluster_name
   depends_on = [module.eks]
 }
 
@@ -167,19 +209,27 @@ module "k8s_config" {
   kube_host     = data.aws_eks_cluster.eks.endpoint
   kube_ca       = data.aws_eks_cluster.eks.certificate_authority[0].data
   kube_token    = data.aws_eks_cluster_auth.eks.token
-  node_role_arn = module.iam.eks_node_group_role_arn
+
+  node_role_arn = module.iam_core.eks_node_group_role_arn
   user_arn      = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/root"
+  additional_roles = []
+  additional_users = []
 
+  providers = {
+    kubernetes.eks = kubernetes.eks
+  }
 }
 
-
-module "helm" {
-  source = "../../modules/helm"
-  cluster_id = module.eks.cluster_id
-  cluster_endpoint = module.eks.cluster_endpoint
-  cluster_certificate_authority_data = module.eks.cluster_certificate_authority_data
-  lbc_iam_depends_on = module.iam.aws_load_balancer_controller_role_name
-  lbc_iam_role_arn   = module.iam.aws_load_balancer_controller_role_arn
-  vpc_id             = module.vpc.vpc_id
-  aws_region         = var.aws_region
-}
+# module "helm" {
+#   source                             = "../../modules/helm"
+#   cluster_id                         = module.eks.cluster_id
+#   cluster_endpoint                   = module.eks.cluster_endpoint
+#   cluster_certificate_authority_data = module.eks.cluster_certificate_authority_data
+#   lbc_iam_depends_on                 = module.iam_irsa.aws_load_balancer_controller_role_name
+#   lbc_iam_role_arn                   = module.iam_irsa.aws_load_balancer_controller_role_arn
+#   vpc_id                             = module.vpc.vpc_id
+#   aws_region                         = var.aws_region
+#   providers = {
+#     kubernetes = kubernetes  # Pass the default provider
+#   }
+# }
