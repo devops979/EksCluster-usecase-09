@@ -160,40 +160,20 @@ data "aws_eks_cluster_auth" "eks" {
   depends_on = [module.eks]
 }
 
-# CloudWatch Log Group for EKS
-resource "aws_cloudwatch_log_group" "eks_cluster" {
-  name              = "/aws/eks/${local.cluster_name}/cluster"
-  retention_in_days = 7
+module "k8s_config" {
+  source = "../../modules/k8s-config"
 
-  tags = local.common_tags
+  kube_host  = data.aws_eks_cluster.eks.endpoint
+  kube_ca    = data.aws_eks_cluster.eks.certificate_authority[0].data
+  kube_token = data.aws_eks_cluster_auth.eks.token
+
+  node_role_arn = module.iam.eks_node_group_role_arn
+  user_arn      = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/root"
+
+  depends_on = [module.eks]
 }
 
 
 
 
-resource "kubernetes_config_map_v1_data" "aws_auth" {
-  metadata {
-    name      = "aws-auth"
-    namespace = "kube-system"
-  }
 
-  data = {
-    mapRoles = yamlencode([
-      {
-        rolearn  = module.iam.eks_node_group_role_arn
-        username = "system:node:{{EC2PrivateDNSName}}"
-        groups   = ["system:bootstrappers", "system:nodes"]
-      }
-    ])
-
-    mapUsers = yamlencode([
-      {
-        userarn  = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/root"
-        username = "root"
-        groups   = ["system:masters"]
-      }
-    ])
-  }
-
-  force = true
-}
