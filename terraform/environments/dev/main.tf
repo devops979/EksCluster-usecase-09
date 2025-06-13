@@ -169,7 +169,7 @@ module "k8s_config" {
 }
 
 
-module "k8s_config" {
+module "config_ssm" {
   source = "../../modules/k8s-config"
 
   kube_host     = data.aws_eks_cluster.eks.endpoint
