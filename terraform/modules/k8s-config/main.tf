@@ -1,4 +1,5 @@
 resource "kubernetes_config_map_v1_data" "aws_auth" {
+  provider = kubernetes
   metadata {
     name      = "aws-auth"
     namespace = "kube-system"
