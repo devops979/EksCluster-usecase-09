@@ -114,7 +114,7 @@ variable "node_groups" {
 
 
 
-variable "node_group_role_arn" {
-  description = "ARN of the EKS node group role"
-  type        = string
-}
+# variable "node_group_role_arn" {
+#   description = "ARN of the EKS node group role"
+#   type        = string
+# }

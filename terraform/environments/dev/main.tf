@@ -41,13 +41,7 @@ provider "aws" {
   }
 }
 
-data "aws_eks_cluster" "eks" {
-  name = module.eks.eks_cluster_name
-}
 
-data "aws_eks_cluster_auth" "eks" {
-  name = module.eks.eks_cluster_name
-}
 
 provider "kubernetes" {
   host                   = data.aws_eks_cluster.eks.endpoint
@@ -156,6 +150,14 @@ module "eks" {
   ]
 }
 
+data "aws_eks_cluster" "eks" {
+  name = module.eks.eks_cluster_name
+}
+
+data "aws_eks_cluster_auth" "eks" {
+  name = module.eks.eks_cluster_name
+}
+
 # CloudWatch Log Group for EKS
 resource "aws_cloudwatch_log_group" "eks_cluster" {
   name              = "/aws/eks/${local.cluster_name}/cluster"
@@ -165,6 +167,8 @@ resource "aws_cloudwatch_log_group" "eks_cluster" {
 }
 
 
+
+
 resource "kubernetes_config_map_v1_data" "aws_auth" {
   metadata {
     name      = "aws-auth"
@@ -172,21 +176,22 @@ resource "kubernetes_config_map_v1_data" "aws_auth" {
   }
 
   data = {
-    mapRoles = <<-EOT
-    - rolearn: "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/module.iam.eks_cluster_role_name"
-      username: module.iam.eks_node_group_role_name
-      groups:
-        - "system:masters"
-    EOT
-    mapUsers = <<-EOT
-    - userarn: "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/root"
-      username: "root"
-      groups:
-        - "system:masters"
-    EOT
+    mapRoles = yamlencode([
+      {
+        rolearn  = module.iam.eks_node_group_role_arn
+        username = "system:node:{{EC2PrivateDNSName}}"
+        groups   = ["system:bootstrappers", "system:nodes"]
+      }
+    ])
+
+    mapUsers = yamlencode([
+      {
+        userarn  = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/root"
+        username = "root"
+        groups   = ["system:masters"]
+      }
+    ])
   }
 
-  force = true # Force update if ConfigMap exists
+  force = true
 }
-
-
