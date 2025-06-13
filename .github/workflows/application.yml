@@ -13,16 +13,16 @@ on:
       - 'docker/**'
       - 'app/**'
       - 'k8s/**'
-  workflow_dispatch: # Allows manual trigger of the workflow
+  workflow_dispatch:
 
 permissions:
-  id-token: write # Required for AWS OIDC authentication
-  contents: read  # Required for checking out the repository
+  id-token: write
+  contents: read
 
 env:
-  AWS_REGION: ${{ vars.AWS_REGION }} # AWS Region variable (e.g., us-east-1)
-  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com # ECR Registry URL
-  PROJECT_NAME: devops-challenge # Your project name, used for ECR repo names and EKS cluster name
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
+  PROJECT_NAME: devops-challenge
 
 jobs:
 
@@ -31,45 +31,30 @@ jobs:
     outputs:
       appointment: ${{ steps.set.outputs.appointment }}
       patient: ${{ steps.set.outputs.patient }}
-      any: ${{ steps.set.outputs.any }} # Output to indicate if any relevant changes occurred
+      any: ${{ steps.set.outputs.any }}
     steps:
       - uses: actions/checkout@v4
-        # Note: fetch-depth: 0 is generally not recommended for performance and
-        # security reasons unless absolutely necessary for deep git history.
-        # Your current `git fetch origin main --depth=1` is a good compromise.
-
       - id: set
         run: |
-          # Fetch only the main branch to compare against for changes
           git fetch origin main --depth=1
-          
-          # Get files changed since the last commit on 'main'
-          # This works for both push and pull_request events by comparing to target branch
           changed=$(git diff --name-only origin/main)
           echo "Detected changes: $changed"
 
-          # Check for changes specific to appointment-service
-          # This includes changes in its app code, Dockerfile, or k8s manifests
           echo "appointment=$(echo "$changed" | grep -qE 'app/appointment-service/|docker/appointment-service/|k8s/appointment-service/' && echo true || echo false)" >> $GITHUB_OUTPUT
-          
-          # Check for changes specific to patient-service
-          # This includes changes in its app code, Dockerfile, or k8s manifests
           echo "patient=$(echo "$changed" | grep -qE 'app/patient-service/|docker/patient-service/|k8s/patient-service/' && echo true || echo false)" >> $GITHUB_OUTPUT
-          
-          # Check if any changes occurred in the monitored directories
           echo "any=$(echo "$changed" | grep -qE 'app/|docker/|k8s/' && echo true || echo false)" >> $GITHUB_OUTPUT
 
   build-appointment:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.appointment == 'true'
     runs-on: ubuntu-latest
-    needs: detect-changes # Depends on detect-changes to determine if it should run
-    if: needs.detect-changes.outputs.appointment == 'true' # Only run if appointment service changes detected
     steps:
       - uses: actions/checkout@v4
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }} # IAM Role ARN for OIDC
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
@@ -77,17 +62,15 @@ jobs:
 
       - name: Build and Push appointment-service
         run: |
-          IMAGE_TAG=${{ github.sha }} # Use commit SHA as image tag for specific versioning
+          IMAGE_TAG=${{ github.sha }}
           REPO=${{ env.PROJECT_NAME }}-appointment-service
-          echo "Building and pushing $REPO:$IMAGE_TAG and $REPO:latest"
           docker build -f docker/appointment-service/Dockerfile -t $ECR_REGISTRY/$REPO:$IMAGE_TAG -t $ECR_REGISTRY/$REPO:latest .
           docker push $ECR_REGISTRY/$REPO:$IMAGE_TAG
           docker push $ECR_REGISTRY/$REPO:latest
-
   build-patient:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.patient == 'true'
     runs-on: ubuntu-latest
-    needs: detect-changes # Depends on detect-changes to determine if it should run
-    if: needs.detect-changes.outputs.patient == 'true' # Only run if patient service changes detected
     steps:
       - uses: actions/checkout@v4
 
@@ -104,21 +87,14 @@ jobs:
         run: |
           IMAGE_TAG=${{ github.sha }}
           REPO=${{ env.PROJECT_NAME }}-patient-service
-          echo "Building and pushing $REPO:$IMAGE_TAG and $REPO:latest"
           docker build -f docker/patient-service/Dockerfile -t $ECR_REGISTRY/$REPO:$IMAGE_TAG -t $ECR_REGISTRY/$REPO:latest .
           docker push $ECR_REGISTRY/$REPO:$IMAGE_TAG
           docker push $ECR_REGISTRY/$REPO:latest
 
   deploy:
-    runs-on: ubuntu-latest
-    # Ensure deploy job depends on detect-changes and potential build jobs
     needs: [detect-changes, build-appointment, build-patient]
-    # The deploy job runs if:
-    # 1. It's the 'main' branch (for production-like deployment)
-    # AND
-    # 2. (Either build-appointment succeeded OR build-patient succeeded OR any changes were detected by detect-changes)
-    # This ensures deployment even if only K8s manifests changed and no builds ran.
     if: github.ref == 'refs/heads/main' && (needs.build-appointment.result == 'success' || needs.build-patient.result == 'success' || needs.detect-changes.outputs.any == 'true')
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -131,33 +107,23 @@ jobs:
       - name: Setup Kubectl
         uses: azure/setup-kubectl@v3
         with:
-          version: 'v1.28.0' # Specify your desired kubectl version
+          version: 'v1.28.0'
 
       - name: Update kubeconfig
-        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.PROJECT_NAME }}-dev-eks # Replace with your EKS cluster name
+        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.PROJECT_NAME }}-dev-eks
 
       - name: Deploy to EKS
         run: |
-          # Deploy appointment-service if its build succeeded OR if changes were detected for it (e.g., only K8s manifests changed)
           if [[ "${{ needs.build-appointment.result }}" == "success" || "${{ needs.detect-changes.outputs.appointment }}" == "true" ]]; then
-            echo "Applying changes for appointment-service..."
-            # Replace placeholders in K8s manifests. Using github.sha for image tag.
             sed -i "s|IMAGE_TAG|${{ github.sha }}|g" k8s/appointment-service/*.yaml || true
             sed -i "s|ECR_REGISTRY|${{ env.ECR_REGISTRY }}|g" k8s/appointment-service/*.yaml || true
             sed -i "s|PROJECT_NAME|${{ env.PROJECT_NAME }}|g" k8s/appointment-service/*.yaml || true
             kubectl apply -f k8s/appointment-service/
-          else
-            echo "Skipping deployment for appointment-service: No changes detected or build skipped."
           fi
 
-          # Deploy patient-service if its build succeeded OR if changes were detected for it
           if [[ "${{ needs.build-patient.result }}" == "success" || "${{ needs.detect-changes.outputs.patient }}" == "true" ]]; then
-            echo "Applying changes for patient-service..."
-            # Replace placeholders in K8s manifests. Using github.sha for image tag.
             sed -i "s|IMAGE_TAG|${{ github.sha }}|g" k8s/patient-service/*.yaml || true
             sed -i "s|ECR_REGISTRY|${{ env.ECR_REGISTRY }}|g" k8s/patient-service/*.yaml || true
             sed -i "s|PROJECT_NAME|${{ env.PROJECT_NAME }}|g" k8s/patient-service/*.yaml || true
             kubectl apply -f k8s/patient-service/
-          else
-            echo "Skipping deployment for patient-service: No changes detected or build skipped."
           fi
