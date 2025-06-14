@@ -80,6 +80,27 @@ provider "kubernetes" {
   }
 }
 
+provider "helm" {
+  kubernetes {
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+    token                  = data.aws_eks_cluster_auth.eks.token
+      exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args = [
+      "eks",
+      "get-token",
+      "--cluster-name",
+      module.eks.eks_cluster_name,
+      "--region",
+      var.aws_region
+    ]
+  }
+  }
+}
+
+
 # Data sources
 data "aws_availability_zones" "available" {
   state = "available"
@@ -180,6 +201,7 @@ module "eks" {
 
 data "aws_iam_openid_connect_provider" "eks" {
   url = module.eks.cluster_oidc_issuer_url
+  depends_on = [ module.eks ]
 }
 
 module "iam_irsa" {
@@ -190,6 +212,9 @@ module "iam_irsa" {
   cluster_oidc_provider_arn             = data.aws_iam_openid_connect_provider.eks.arn
   cluster_oidc_issuer_url               = module.eks.cluster_oidc_issuer_url
   aws_iam_openid_connect_provider_extract_from_arn = replace(data.aws_iam_openid_connect_provider.eks.arn, "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/", "")
+  depends_on = [
+    module.eks
+  ]
 }
 
 
@@ -218,18 +243,36 @@ module "k8s_config" {
   providers = {
     kubernetes.eks = kubernetes.eks
   }
+  depends_on = [
+    module.eks,
+    module.iam_core
+  ]
 }
+
+# data "aws_lb" "app_alb" {
+#   name = "app-alb"
+# }
+
 
 # module "helm" {
 #   source                             = "../../modules/helm"
 #   cluster_id                         = module.eks.cluster_id
 #   cluster_endpoint                   = module.eks.cluster_endpoint
+#   alb_dns_name = data.aws_lb.app_alb.dns_name
 #   cluster_certificate_authority_data = module.eks.cluster_certificate_authority_data
 #   lbc_iam_depends_on                 = module.iam_irsa.aws_load_balancer_controller_role_name
 #   lbc_iam_role_arn                   = module.iam_irsa.aws_load_balancer_controller_role_arn
 #   vpc_id                             = module.vpc.vpc_id
 #   aws_region                         = var.aws_region
 #   providers = {
-#     kubernetes = kubernetes  # Pass the default provider
+#     kubernetes = kubernetes.eks   # use aliased provider
+#     helm=helm                     # if defined externally
 #   }
+#   depends_on = [
+#     module.eks,
+#     module.iam_irsa,
+#     data.aws_lb.app_alb
+#   ]
 # }
+
+
