@@ -131,7 +131,11 @@ jobs:
           sed -i "s|ECR_REGISTRY|${{ env.ECR_REGISTRY }}|g" *.yaml
           sed -i "s|PROJECT_NAME|${{ env.PROJECT_NAME }}|g" *.yaml
           kubectl apply -f deployment.yaml -f service.yaml -f hpa.yaml -f serviceaccount.yaml
-
+          
+      - name: Ensure Ingress deployment
+        working-directory: ./k8s/
+        run: kubectl apply -f ingress.yml
+        
       - name: Verify Cluster Access
         run: kubectl get nodes
 
