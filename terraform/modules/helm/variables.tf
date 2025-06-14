@@ -12,3 +12,8 @@ variable "vpc_id" {
 }
 variable "aws_region" {
 }
+
+variable "alb_dns_name" {
+  type        = string
+  description = "DNS name of the AWS ALB"
+}

@@ -3,20 +3,20 @@ data "aws_partition" "current" {}
 data "aws_caller_identity" "current" {}
 
 # KMS Key for EKS cluster encryption
-resource "aws_kms_key" "eks" {
-  description             = "EKS Secret Encryption Key"
-  deletion_window_in_days = 7
-  enable_key_rotation     = true
+# resource "aws_kms_key" "eks" {
+#   description             = "EKS Secret Encryption Key"
+#   deletion_window_in_days = 7
+#   enable_key_rotation     = true
 
-  tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-eks-kms"
-  })
-}
+#   tags = merge(var.tags, {
+#     Name = "${var.project_name}-${var.environment}-eks-kms"
+#   })
+# }
 
-resource "aws_kms_alias" "eks" {
-  name          = "alias/${var.project_name}-${var.environment}-eks"
-  target_key_id = aws_kms_key.eks.key_id
-}
+# resource "aws_kms_alias" "eks" {
+#   name          = "alias/${var.project_name}-${var.environment}-eks"
+#   target_key_id = aws_kms_key.eks.key_id
+# }
 
 # EKS Cluster Security Group
 resource "aws_security_group" "cluster" {
@@ -100,12 +100,12 @@ resource "aws_eks_cluster" "main" {
     security_group_ids      = [aws_security_group.cluster.id]
   }
 
-  encryption_config {
-    provider {
-      key_arn = aws_kms_key.eks.arn
-    }
-    resources = ["secrets"]
-  }
+  # encryption_config {
+  #   provider {
+  #     key_arn = aws_kms_key.eks.arn
+  #   }
+  #   resources = ["secrets"]
+  # }
 
   enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 

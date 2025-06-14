@@ -10,7 +10,7 @@ metadata:
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
     alb.ingress.kubernetes.io/group.name: "app-routing-group"
     alb.ingress.kubernetes.io/load-balancer-name: "app-alb"
-    alb.ingress.kubernetes.io/subnets: subnet-04b9576408b6256b2,subnet-065cdada683c653e6
+    alb.ingress.kubernetes.io/subnets: subnet-0ff6ae89b012050bc,subnet-020ff1031afc40158
     alb.ingress.kubernetes.io/healthcheck-path: /health
 spec:
   ingressClassName: alb
