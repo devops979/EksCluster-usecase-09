@@ -112,7 +112,7 @@ jobs:
         run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.PROJECT_NAME }}-dev-eksnew
      
       - name: Ensure Namespace Exists
-        working-directory: ./k8s/
+        working-directory: ./k8s
         run: kubectl apply -f namespace.yaml
 
       - name: Deploying appointment application in cluster
