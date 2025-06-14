@@ -66,7 +66,7 @@ allowed_instance_type(instance_type) if {
 # Deny resources in non-approved regions
 deny contains msg if {
     provider := input.configuration.provider_config.aws
-    provider.region not in ["us-west-2", "us-east-1", "eu-west-1"]
+    not provider.region  in ["us-west-2", "us-east-1", "eu-west-1"]
     msg := sprintf("Resources must be deployed in approved regions only")
 }
 
