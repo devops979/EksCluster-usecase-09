@@ -5,17 +5,18 @@ on:
     branches:
       - main
 
+
 permissions:
   contents: write
   id-token: write
 
 defaults:
   run:
-    working-directory: ./
+    working-directory: ./terraform/environments/dev
 
 jobs:
   scan:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       security-events: write
@@ -99,7 +100,28 @@ jobs:
 
       - name: Terraform Validate
         run: terraform validate -no-color
+ 
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+      
+      - name: Convert Plan to JSON
+        run: terraform show -json tfplan > tfplan.json
 
+      - name: Install OPA
+        run: |
+          curl -L -o opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static
+          chmod +x opa
+          sudo mv opa /usr/local/bin/
+
+      
+      - name: Validate Terraform with OPA
+        working-directory: ${{ github.workspace }}
+        run: |
+          opa eval --format pretty \
+            --data policies/security.rego \
+            --input terraform/environments/dev/tfplan.json \
+            "data.terraform.validation.deny"
+          
       - name: Terraform Test
         run: terraform test || true
 
@@ -112,7 +134,7 @@ jobs:
           TF_IN_AUTOMATION: "true"
           TF_LOG: "DEBUG"
         run: |
-          terraform plan -var-file="./environments/dev/dev.tfvars" -no-color > plan.txt 2> debug.log
+          terraform plan -var-file="./terraform/environments/dev/terraform.tfvars" -no-color > plan.txt 2> debug.log
           cat plan.txt
           echo "stdout<<EOF" >> $GITHUB_OUTPUT
           cat plan.txt >> $GITHUB_OUTPUT
