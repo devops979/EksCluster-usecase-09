@@ -110,6 +110,7 @@ jobs:
           version: 'v1.32.0'
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.PROJECT_NAME }}-dev-eksnew
+     
       - name: Ensure Namespace Exists
         working-directory: ./k8s/
         run: kubectl apply -f namespace.yaml
