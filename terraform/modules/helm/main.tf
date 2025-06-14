@@ -78,34 +78,58 @@ resource "helm_release" "prometheus_grafana_stack" {
   wait            = true
   wait_for_jobs   = true
 
-  values = [
-    <<-EOT
-    grafana:
+values = [
+  <<-EOT
+  grafana:
+    enabled: true
+    adminPassword: "admin"
+    service:
+      type: ClusterIP
+      port: 80
+      targetPort: 3000
+    ingress:
       enabled: true
-      adminPassword: "admin"
-      service:
-        type: LoadBalancer
-        annotations:
-          service.beta.kubernetes.io/aws-load-balancer-type: "external"
-          service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
-          service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
-        port: 80
-        targetPort: 3000
-      resources:
-        requests:
-          memory: 512Mi
-          cpu: 300m
+      ingressClassName: alb
+      annotations:
+        alb.ingress.kubernetes.io/scheme: internet-facing
+        alb.ingress.kubernetes.io/target-type: ip
+        alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+        alb.ingress.kubernetes.io/group.name: "app-routing-group"
+        alb.ingress.kubernetes.io/load-balancer-name: "app-alb"
+        alb.ingress.kubernetes.io/subnets: subnet-04b9576408b6256b2,subnet-065cdada683c653e6
+        alb.ingress.kubernetes.io/healthcheck-path: /login
+      path: /
+      pathType: Prefix
 
-    prometheus:
-      prometheusSpec:
-        serviceMonitorSelectorNilUsesHelmValues: false
-        resources:
-          requests:
-            memory: 1Gi
-            cpu: 500m
+  prometheus:
+    service:
+      type: ClusterIP
+    ingress:
+      enabled: true
+      ingressClassName: alb
+      annotations:
+        alb.ingress.kubernetes.io/scheme: internet-facing
+        alb.ingress.kubernetes.io/target-type: ip
+        alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+        alb.ingress.kubernetes.io/group.name: "app-routing-group"
+        alb.ingress.kubernetes.io/load-balancer-name: "app-alb"
+        alb.ingress.kubernetes.io/subnets: subnet-04b9576408b6256b2,subnet-065cdada683c653e6
+        alb.ingress.kubernetes.io/healthcheck-path: /prometheus/graph
+      paths:
+        - path: /prometheus
+          pathType: Prefix
 
-    EOT
-  ]
+  prometheusOperator:
+    enabled: true
+
+  prometheus-node-exporter:
+    enabled: true
+
+  alertmanager:
+    enabled: true
+  EOT
+]
+
 
   depends_on = [
     helm_release.loadbalancer_controller,
