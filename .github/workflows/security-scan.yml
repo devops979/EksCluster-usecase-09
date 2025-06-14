@@ -105,6 +105,13 @@ jobs:
       
       - name: Convert Plan to JSON
         run: terraform show -json tfplan > tfplan.json
+
+      - name: Install OPA
+        run: |
+          curl -L -o opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static
+          chmod +x opa
+          sudo mv opa /usr/local/bin/
+
       
       - name: Validate Terraform with OPA
         run: |
