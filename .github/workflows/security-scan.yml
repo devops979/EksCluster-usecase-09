@@ -11,7 +11,7 @@ permissions:
 
 defaults:
   run:
-    working-directory: ./
+    working-directory: ./terraform/environments/dev
 
 jobs:
   scan:
@@ -99,7 +99,22 @@ jobs:
 
       - name: Terraform Validate
         run: terraform validate -no-color
+ 
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+      
+      - name: Convert Plan to JSON
+        run: terraform show -json tfplan > tfplan.json
+      
+      - name: Validate Terraform with OPA
+        run: |
+          opa eval --format pretty \
+            --data policies \
+            --input tfplan.json \
+            "data.terraform.validation.deny"
 
+          
+          
       - name: Terraform Test
         run: terraform test || true
 
