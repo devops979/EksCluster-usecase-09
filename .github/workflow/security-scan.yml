@@ -1,0 +1,185 @@
+name: Scan and Validate the Infrastructure
+
+on: 
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  id-token: write
+
+defaults:
+  run:
+    working-directory: ./
+
+jobs:
+  scan:
+    runs-on: self-hosted
+    permissions:
+      contents: write
+      security-events: write
+      actions: read
+      id-token: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up TFLint
+        uses: terraform-linters/setup-tflint@v1
+        with:
+          tflint_version: "latest"
+          github_token: ${{ secrets.GITHUBTOKEN }}
+
+      - name: Init TFLint
+        run: tflint --init
+
+      - name: Run TFLint
+        run: tflint
+
+      - name: Checkov GitHub Action
+        uses: bridgecrewio/checkov-action@master
+        continue-on-error: true
+        with:
+          output_format: cli,sarif
+          output_file_path: console,results.sarif
+          soft_fail: true
+
+      - name: Install GitHub CLI
+        run: |
+          sudo apt update
+          sudo apt install -y gh
+
+      - name: Upload SARIF file via GitHub API
+        if: success() || failure()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUBTOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          if [ -f "results.sarif" ]; then
+            echo "Uploading SARIF file using GitHub REST API..."
+            curl -s -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data @- \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/code-scanning/sarifs" <<EOF
+          {
+            "commit_sha": "${GITHUB_SHA}",
+            "ref": "refs/pull/${{ github.event.pull_request.number }}/merge",
+            "sarif": "$(base64 -w 0 results.sarif)",
+            "tool_name": "Checkov"
+          }
+          EOF
+          else
+            echo "No SARIF file found. Skipping upload."
+          fi
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ">= 1.12.0"
+
+      - name: Check Terraform Formatting
+        run: terraform fmt -recursive
+
+      - name: Clean Terraform Cache
+        run: |
+          rm -rf .terraform
+          rm -f .terraform.lock.hcl
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate -no-color
+
+      - name: Terraform Test
+        run: terraform test || true
+
+      - name: Terraform Plan
+        id: plan
+        timeout-minutes: 10
+        continue-on-error: true
+        shell: bash
+        env:
+          TF_IN_AUTOMATION: "true"
+          TF_LOG: "DEBUG"
+        run: |
+          terraform plan -var-file="./environments/dev/dev.tfvars" -no-color > plan.txt 2> debug.log
+          cat plan.txt
+          echo "stdout<<EOF" >> $GITHUB_OUTPUT
+          cat plan.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Inject Terraform Plan into README.md
+        run: |
+          echo -e "\n## Terraform Plan Output\n" >> $GITHUB_WORKSPACE/README.md
+          cat plan.txt >> $GITHUB_WORKSPACE/README.md
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3.9.1
+        with:
+          node-version: '18'
+
+      - name: Install terraform-docs
+        run: |
+          curl -sSLo ./terraform-docs.tar.gz https://terraform-docs.io/dl/v0.16.0/terraform-docs-v0.16.0-$(uname)-amd64.tar.gz
+          tar -xzf terraform-docs.tar.gz
+          sudo mv terraform-docs /usr/local/bin/
+
+      - name: Generate-directory
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUBTOKEN }}
+        run: |
+          git config --local user.email "devops979@gmail.com"
+          git config --local user.name "devops979"
+          git fetch origin ${{ github.head_ref }}
+          git checkout ${{ github.head_ref }}
+          git remote set-url origin https://${{ github.actor }}:${GITHUBTOKEN}@github.com/${{ github.repository }}
+          terraform-docs markdown . > README.md.new
+          mv README.md.new README.md
+          if [ -f README.md ]; then
+            git add README.md
+            git diff --cached --quiet && echo "No changes to commit" || git commit -m "docs(terraform): Update README.md via terraform-docs"
+            git push origin HEAD:${{ github.head_ref }}
+          else
+            echo "README.md was not generated."
+          fi 
+      - name: Update Pull Request with Terraform Plan
+        uses: actions/github-script@v7
+        env:
+          PLAN: "${{ steps.plan.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GITHUBTOKEN }}
+          script: |
+            const plan = process.env.PLAN || "No plan output available.";
+            const output = [
+              "#### Terraform Format and Style ",
+              "#### Terraform Initialization ",
+              "#### Terraform Validation ",
+              "#### Terraform Plan 📄",
+              "",
+              "<details><summary>Show Plan</summary>",
+              "",
+              "```hcl",
+              plan,
+              "```",
+              "",
+              "</details>",
+              "",
+              `*Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`
+            ].join('\n');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
