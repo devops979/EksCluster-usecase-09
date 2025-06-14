@@ -112,7 +112,7 @@ jobs:
           TF_IN_AUTOMATION: "true"
           TF_LOG: "DEBUG"
         run: |
-          terraform plan -var-file="./environments/dev/dev.tfvars" -no-color > plan.txt 2> debug.log
+          terraform plan -var-file="./terraform/environments/dev/terraform.tfvars" -no-color > plan.txt 2> debug.log
           cat plan.txt
           echo "stdout<<EOF" >> $GITHUB_OUTPUT
           cat plan.txt >> $GITHUB_OUTPUT
