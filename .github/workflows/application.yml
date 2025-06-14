@@ -25,7 +25,7 @@ env:
 
 jobs:
   detect-changes:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       patient_changed: ${{ steps.changes.outputs.patient-service }}
       appointment_changed: ${{ steps.changes.outputs.appointment-service }}
@@ -94,7 +94,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
   deploy:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: [detect-changes, build-appointment-service, build-patient-service]
     if: |
       always() && github.ref == 'refs/heads/main'
@@ -110,8 +110,9 @@ jobs:
           version: 'v1.32.0'
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.PROJECT_NAME }}-dev-eksnew
+     
       - name: Ensure Namespace Exists
-        working-directory: ./k8s/
+        working-directory: ./k8s
         run: kubectl apply -f namespace.yaml
 
       - name: Deploying appointment application in cluster
@@ -131,7 +132,11 @@ jobs:
           sed -i "s|ECR_REGISTRY|${{ env.ECR_REGISTRY }}|g" *.yaml
           sed -i "s|PROJECT_NAME|${{ env.PROJECT_NAME }}|g" *.yaml
           kubectl apply -f deployment.yaml -f service.yaml -f hpa.yaml -f serviceaccount.yaml
-
+          
+      - name: Ensure Ingress deployment
+        working-directory: ./k8s/
+        run: kubectl apply -f ingress.yml
+        
       - name: Verify Cluster Access
         run: kubectl get nodes
 
