@@ -114,13 +114,12 @@ jobs:
 
       
       - name: Validate Terraform with OPA
+        working-directory: ${{ github.workspace }}
         run: |
           opa eval --format pretty \
-            --data policies \
-            --input tfplan.json \
+            --data policies/security.rego \
+            --input terraform/environments/dev/tfplan.json \
             "data.terraform.validation.deny"
-
-          
           
       - name: Terraform Test
         run: terraform test || true
